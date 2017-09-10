@@ -53,10 +53,13 @@ int main(int argc, char *argv[])
 	bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
 
 	for (;;) {
+		ssize_t n = 0;
+		memset(&message, 0, sizeof(message));
+
 		// Receive up to one byte less than declared, because it will
 		// be NUL-terminated later.
 		socklen_t len = (socklen_t) sizeof(client);
-		ssize_t n = recvfrom(sockfd, message, sizeof(message) - 1,
+		n = recvfrom(sockfd, message, sizeof(message) - 1,
 							 0, (struct sockaddr *) &client, &len);
 		if (n >= 0) {
 			message[n] = '\0';
