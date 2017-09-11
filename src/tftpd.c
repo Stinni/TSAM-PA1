@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 					WRequest(sockfd, client);
 					break;
 				case OP_DATA :
-					printf("%s sent a data packet but it is not supported \n", (char *)inet_ntoa(client.sin_addr));
+					printf("%s sent a data packet but it is not supported\n", (char *)inet_ntoa(client.sin_addr));
 					break;
 				case OP_ACK :
 					printf("Acknowledgment \n");
