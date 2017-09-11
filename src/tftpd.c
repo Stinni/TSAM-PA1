@@ -35,6 +35,7 @@
 #include <netinet/in.h>
 //#include <sys/select.h>
 //#include <time.h>
+#include <errno.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -46,20 +47,13 @@ void RRequest()
 
 }
 
-void WRequest(int sockfd, struct sockaddr_in *client, socklen_t *len)
+void WRequest(int sockfd, struct sockaddr_in client)
 {
-  printf("WRQ request not allowed on server! \n");
-  char errorPacket[45];
-  errorPacket[0] = 0; errorPacket[1] = OP_ERR; errorPacket[2] = 0; errorPacket[3] = ERR_IOP;
-  strcpy(&errorPacket[4], "Uploading is not allowed on this server!");
-  sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) client, (size_t) len);
-/*
-    printf("Client sent WRQ request. Not supported!\n");
-    char errPacket[27];
-    errPacket[0] = 0; errPacket[1] = OP_ERR; errPacket[2] = 0; errPacket[3] = ERR_ACC;
-    strcpy(&errPacket[4], "Uploading not supported");
-    sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, len);
-*/
+	printf("WRQ request not allowed on server! \n");
+	char errorPacket[45];
+	errorPacket[0] = 0; errorPacket[1] = OP_ERR; errorPacket[2] = 0; errorPacket[3] = ERR_IOP;
+	strcpy(&errorPacket[4], "Uploading is not allowed on this server!");
+	sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client, (socklen_t) sizeof(client));
 }
 
 int main(int argc, char *argv[])
@@ -96,6 +90,9 @@ int main(int argc, char *argv[])
 	server.sin_port = htons(socket_addr);
 	bind(sockfd, (struct sockaddr *) &server, (socklen_t) sizeof(server));
 
+	printf("Server listening!\n");
+	fflush(stdout);
+
 	for (;;) {
 		ssize_t n = 0;
 		memset(&message, 0, sizeof(message));
@@ -105,27 +102,26 @@ int main(int argc, char *argv[])
 		socklen_t len = (socklen_t) sizeof(client);
 		n = recvfrom(sockfd, message, sizeof(message) - 1,
 							 0, (struct sockaddr *) &client, &len);
-      
-      char opcode = message[1];
-      switch(opcode) {
-        case OP_RRQ :
-        	printf("Read request \n");
-        	RRequest(sockfd, client, message);
-        	break;
-        case OP_WRQ :
-        	printf("Write request \n");
-        	WRequest(sockfd, &client, &len);
-        	break;
-        case OP_DATA :
-          	printf("Data \n");
-        	break;
-        case OP_ACK :
-        	printf("Acknowledgment \n");
-        	break;
-        case OP_ERR :
-        	printf("Error \n");
-        	break;
-      }
+
+		char opcode = message[1];
+		switch(opcode) {
+			case OP_RRQ :
+				printf("Read request \n");
+				RRequest(sockfd, &client, message);
+				break;
+			case OP_WRQ :
+				WRequest(sockfd, client);
+				break;
+			case OP_DATA :
+				printf("Data \n");
+				break;
+			case OP_ACK :
+				printf("Acknowledgment \n");
+				break;
+			case OP_ERR :
+				printf("Error \n");
+				break;
+		}
 
 		if (n >= 0) {
 			message[n] = '\0';
