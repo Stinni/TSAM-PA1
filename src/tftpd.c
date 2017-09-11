@@ -108,32 +108,25 @@ int main(int argc, char *argv[])
       
       char opcode = message[1];
       switch(opcode) {
-        case '1' :
+        case OP_RRQ :
         	printf("Read request \n");
         	RRequest(sockfd, client, message);
         	break;
-        case '2' :
+        case OP_WRQ :
         	printf("Write request \n");
         	WRequest(sockfd, &client, &len);
         	break;
-        case '3' :
+        case OP_DATA :
           	printf("Data \n");
         	break;
-        case '4' :
+        case OP_ACK :
         	printf("Acknowledgment \n");
         	break;
-        case '5' :
+        case OP_ERR :
         	printf("Error \n");
         	break;
       }
-/*
- OP_RRQ  1 // Read request
- OP_WRQ  2 // Write request
- OP_DATA 3 // Data
- OP_ACK  4 // Acknowledgment
- OP_ERR  5 // Error
-*/          
-          
+
 		if (n >= 0) {
 			message[n] = '\0';
 			printf("Received:\n");
