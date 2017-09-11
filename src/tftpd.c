@@ -33,9 +33,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 //#include <sys/select.h>
 //#include <time.h>
-#include <errno.h>
+//#include <errno.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -103,37 +104,33 @@ int main(int argc, char *argv[])
 		n = recvfrom(sockfd, message, sizeof(message) - 1,
 							 0, (struct sockaddr *) &client, &len);
 
-		char opcode = message[1];
-		switch(opcode) {
-			case OP_RRQ :
-				printf("Read request \n");
-				RRequest(sockfd, &client, message);
-				break;
-			case OP_WRQ :
-				WRequest(sockfd, client);
-				break;
-			case OP_DATA :
-				printf("Data \n");
-				break;
-			case OP_ACK :
-				printf("Acknowledgment \n");
-				break;
-			case OP_ERR :
-				printf("Error \n");
-				break;
-		}
-
 		if (n >= 0) {
 			message[n] = '\0';
-			printf("Received:\n");
-			for(unsigned int i = 0; i < n; i++) printf("%hhx ", message[i]);
-			printf("\n");
-			fflush(stdout);
-
+			//printf("Received:\n");
+			//for(unsigned int i = 0; i < n; i++) printf("%hhx ", message[i]);
+			//printf("\n");
+			//fflush(stdout);
+			char opcode = message[1];
+			switch(opcode) {
+				case OP_RRQ :
+					//RRequest(sockfd, client, message);
+					break;
+				case OP_WRQ :
+					WRequest(sockfd, client);
+					break;
+				case OP_DATA :
+					printf("%s sent a data packet but it is not supported \n", (char *)inet_ntoa(client.sin_addr));
+					break;
+				case OP_ACK :
+					printf("Acknowledgment \n");
+					break;
+				case OP_ERR :
+					printf("Error \n");
+					break;
+			}
 		} else {
 			// Error or timeout. Check errno == EAGAIN or
 			// errno == EWOULDBLOCK to check whether a timeout happened
 		}
 	}
 }
-
