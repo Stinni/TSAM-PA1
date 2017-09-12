@@ -41,6 +41,10 @@
 #include <ctype.h>
 #include <limits.h> /* PATH_MAX */
 
+// Global variables
+char toBeSent[MAX_PACKET_SIZE];
+FILE *fp;
+
 void RRequest(int sockfd, struct sockaddr_in client, char *msg, char *folder_path, char *base_path)
 {
 
@@ -51,10 +55,17 @@ void RRequest(int sockfd, struct sockaddr_in client, char *msg, char *folder_pat
 	strcpy(file_name, &msg[2]);
 	strcat(tmp, file_name);
 
+	printf("file \"%s\" requested from %s:%d\n", file_name, (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 	file_path = realpath(tmp, NULL);
 
 	if(file_path == NULL) {
-		printf("HERE WE NEED TO SEND AN ERROR PACKET BECAUSE REALPATH COULDN'T BE RESOLVED!\n");
+		// An error package is sent to the client if the file requested doesn't
+		// exists or for some other reason can't be opened
+		printf("file \"%s\" doesn't exist\n", file_name);
+		char errPacket[19];
+		errPacket[0] = 0; errPacket[1] = OP_ERR; errPacket[2] = 0; errPacket[3] = ERR_FILE;
+		strcpy(&errPacket[4], "File not found");
+		sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, (socklen_t) sizeof(client));
 	}
 	else {
 		if(strncmp(base_path, file_path, strlen(base_path)) != 0)
@@ -63,10 +74,9 @@ void RRequest(int sockfd, struct sockaddr_in client, char *msg, char *folder_pat
 		}
 		else {
 			printf("WOOHOO!!!\n");
+			//fp = fopen(file_path, "r");
 		}
 	}
-
-	//fp = fopen(file_path, "r");
 }
 
 void WRequest(int sockfd, struct sockaddr_in client)
