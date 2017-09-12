@@ -6,29 +6,39 @@ TFTP server implementation                                       2017-09-12
                       Structure of implementation
 ---------------------------------------------------------------------------
  Our implementation of a TFTP server starts with declarations of constants,
-operation codes and error codes.
-We then declare a number of global variables. (Explain)
-We structured the code in the main function so it would use assisstant
+operation codes and error codes. We then declare a number of global 
+variables. We use globals so that we don't have to send them into each 
+function.
+ We structured the code in the main function so it would use assisstant
 functions. The functions we use are:
- a. RRequest - handles read requests (RRQ)
-    The function makes sure that the client is requesting a file that the
-    client is allowed to access. If not, an error packet with a message
-    is sent back to the client. Otherwise the server sends the first data
-    packet to the client.
- b. WRequest - handles write requests (WRQ)
-    The function sends an illegal operation error message back to the 
-    client due to uploading not being allowed.
- c. AckReceived - handles acknowledge (ACK) packets
-    The function checks if the transfer is complete along with checking
-    whether the block number from the ACK message is the same as the block
-    number in the last data packet sent out. If transfer is not complete
-    and the block numbers match then the next data packet is sent to the
-    client. Otherwise the file transfer is finished.
-We also have a function to handle error messages it receives but deemed
-it unneccesary to implement properly and ended up commenting it out of
-code.
+  a. RRequest - handles read requests (RRQ)
+     The function makes sure that the client is requesting a file that the
+     client is allowed to access. If not, an error packet with a message
+     is sent back to the client. Otherwise the server sends the first data
+     packet to the client.
+  b. WRequest - handles write requests (WRQ)
+     The function sends an illegal operation error message back to the 
+     client due to uploading not being allowed.
+  c. AckReceived - handles acknowledge (ACK) packets
+     The function checks if the transfer is complete along with checking
+     whether the block number from the ACK message is the same as the block
+     number in the last data packet sent out. If transfer is not complete
+     and the block numbers match then the next data packet is sent to the
+     client. Otherwise the file transfer is finished.
+  d. ErrorReceived - handles error messages received from client
+     The function closes the file transfer connection if the server
+     receives an error from the client. We did have some code to handle
+     specific errors from the client but deemed it unneccesary to handle
+     each case and ended commenting it out of code.
 
- The main section of our implementation
+ The main section of our implementation takes care of the command line
+arguments as well as setting all the basic information about the server
+and the client. In the main section we have a for-loop that continuously
+runs and waits for message packets from the client. If we receive a message
+of length 0 (zero) or higher we check the operation code of the received
+message with a switch statement to decide the next course of action. If the
+message length is less we wait a while and then send a timeout message to 
+the client as well as showing a timeout message in the server.
 
 ---------------------------------------------------------------------------
                              RRQ and WRQ modes
