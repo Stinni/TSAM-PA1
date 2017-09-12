@@ -41,9 +41,15 @@
 #include <ctype.h>
 #include <limits.h> /* PATH_MAX */
 
-// Global variables
-char toBeSent[MAX_PACKET_SIZE];
-FILE *fp;
+// Global variables - 
+socklen_t len;
+FILE *fp = NULL;
+char *toBeSent;
+int toBeSentLength = 0;
+int server_busy = 0;
+int transfer_complete = 0;
+unsigned int block_nr = 1;
+int timeouts = 0;
 
 void RRequest(int sockfd, struct sockaddr_in client, char *msg, char *folder_path, char *base_path)
 {
@@ -55,26 +61,68 @@ void RRequest(int sockfd, struct sockaddr_in client, char *msg, char *folder_pat
 	strcpy(file_name, &msg[2]);
 	strcat(tmp, file_name);
 
-	printf("file \"%s\" requested from %s:%d\n", file_name, (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+	printf("File \"%s\" requested from %s:%d\n", file_name, (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+
+	if(server_busy) {
+		printf("Client sent RRQ request while work in progress\n");
+		char errPacket[38];
+		errPacket[0] = 0; errPacket[1] = OP_ERR; errPacket[2] = 0; errPacket[3] = ERR_NOT;
+		strcpy(&errPacket[4], "Work in progress, try again later");
+		sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, len);
+		return;
+	}
+
 	file_path = realpath(tmp, NULL);
 
 	if(file_path == NULL) {
-		// An error package is sent to the client if the file requested doesn't
-		// exists or for some other reason can't be opened
-		printf("file \"%s\" doesn't exist\n", file_name);
+		// An error package is sent to the client if the file requested doesn't exists
+		printf("File \"%s\" doesn't exist\n", file_name);
 		char errPacket[19];
 		errPacket[0] = 0; errPacket[1] = OP_ERR; errPacket[2] = 0; errPacket[3] = ERR_FILE;
 		strcpy(&errPacket[4], "File not found");
-		sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, (socklen_t) sizeof(client));
+		sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, len);
 	}
 	else {
 		if(strncmp(base_path, file_path, strlen(base_path)) != 0)
 		{
-			printf("HERE WE NEED TO SEND AN ERROR PACKET BECAUSE THE FILE ISN'T IN THE ALLOWED FOLDER!\n");
+			printf("NOTE!!! Access violation, the client tried to access a file outside the \"%s\" folder!\n", folder_path);
+			char errPacket[21];
+			errPacket[0] = 0; errPacket[1] = OP_ERR; errPacket[2] = 0; errPacket[3] = ERR_ACC;
+			strcpy(&errPacket[4], "Access violation");
+			sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, len);
 		}
 		else {
-			printf("WOOHOO!!!\n");
-			//fp = fopen(file_path, "r");
+			fp = fopen(file_path, "r");
+			if(fp == NULL) {
+				// By this stage the file should exist and fp shouldn't be NULL but better check, just in case...
+				printf("File \"%s\" couldn't be opened\n", file_path);
+				char errPacket[19];
+				errPacket[0] = 0; errPacket[1] = OP_ERR; errPacket[2] = 0; errPacket[3] = ERR_FILE;
+				strcpy(&errPacket[4], "File not found");
+				sendto(sockfd, errPacket, sizeof(errPacket), 0, (struct sockaddr *) &client, len);
+			}
+			else {
+				printf("File \"%s\" was opened\n", file_path);
+				server_busy++;
+				char tmpMsg[MAX_MESSAGE_LENGTH];
+				int tmpMsgLength = fread(&tmpMsg, 1, MAX_MESSAGE_LENGTH, fp); // up to 512 bytes of the file is copied into the package.
+				//printf("tmpMsg: %s\n", tmpMsg);
+				if(tmpMsgLength < MAX_MESSAGE_LENGTH) {
+					toBeSentLength = tmpMsgLength + 4;
+					toBeSent = realloc(toBeSent, toBeSentLength);
+					toBeSent[0] = 0; toBeSent[1] = OP_DATA; toBeSent[2] = block_nr >> 8; toBeSent[3] = block_nr & 0xff;
+					memcpy(&toBeSent[4], tmpMsg, tmpMsgLength);
+					transfer_complete++;
+				}
+				else {
+					toBeSentLength = MAX_PACKET_SIZE;
+					toBeSent = realloc(toBeSent, toBeSentLength);
+					toBeSent[0] = 0; toBeSent[1] = OP_DATA; toBeSent[2] = block_nr >> 8; toBeSent[3] = block_nr & 0xff;
+					memcpy(&toBeSent[4], tmpMsg, tmpMsgLength);
+					transfer_complete = 0;
+				}
+				sendto(sockfd, toBeSent, toBeSentLength, 0, (struct sockaddr *) &client, len);
+			}
 		}
 	}
 }
@@ -85,7 +133,7 @@ void WRequest(int sockfd, struct sockaddr_in client)
 	char errorPacket[45];
 	errorPacket[0] = 0; errorPacket[1] = OP_ERR; errorPacket[2] = 0; errorPacket[3] = ERR_IOP;
 	strcpy(&errorPacket[4], "Uploading is not allowed on this server!");
-	sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client, (socklen_t) sizeof(client));
+	sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client, len);
 }
 
 /*void ErrorReceived(struct sockaddr_in client, char message)
@@ -184,7 +232,7 @@ int main(int argc, char *argv[])
 
 		// Receive up to one byte less than declared, because it will
 		// be NUL-terminated later.
-		socklen_t len = (socklen_t) sizeof(client);
+		len = (socklen_t) sizeof(client);
 		n = recvfrom(sockfd, message, sizeof(message) - 1,
 							 0, (struct sockaddr *) &client, &len);
 
