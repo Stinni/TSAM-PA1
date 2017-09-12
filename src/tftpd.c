@@ -180,7 +180,7 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 	}
 }
 
-void ErrorReceived(struct sockaddr_in client, char *message)
+void ErrorReceived(struct sockaddr_in client)
 {
 	printf("An error message recieved from \"%s:%d\"", (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 	/*char errcode = message[4];
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 					AckReceived(sockfd, client, message);
 					break;
 				case OP_ERR :
-					ErrorReceived(client, message);
+					ErrorReceived(client);
 					break;
 				default:
 					printf("Opcode unrecognised!\n");
