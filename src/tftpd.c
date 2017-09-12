@@ -41,7 +41,8 @@
 #include <ctype.h>
 #include <limits.h> /* PATH_MAX */
 
-// Global variables - 
+// Global variables - These variables have to be accessible in nearly all functions.
+// To not have to send them into each function, they're declared here instead.
 socklen_t len;
 FILE *fp = NULL;
 char *toBeSent;
@@ -134,6 +135,47 @@ void WRequest(int sockfd, struct sockaddr_in client)
 	errorPacket[0] = 0; errorPacket[1] = OP_ERR; errorPacket[2] = 0; errorPacket[3] = ERR_IOP;
 	strcpy(&errorPacket[4], "Uploading is not allowed on this server!");
 	sendto(sockfd, errorPacket, sizeof(errorPacket), 0, (struct sockaddr *) &client, len);
+}
+
+void AckReceived(int sockfd, struct sockaddr_in client, char *message)
+{
+	unsigned int recv_block_nr = (unsigned char)message[2] << 8 | (unsigned char)message[3];
+
+	if(server_busy && !transfer_complete && block_nr == recv_block_nr) {
+		block_nr++;
+		char tmpMsg[MAX_MESSAGE_LENGTH];
+		int tmpMsgLength = fread(&tmpMsg, 1, MAX_MESSAGE_LENGTH, fp);
+		if(tmpMsgLength < MAX_MESSAGE_LENGTH) {
+			toBeSentLength = tmpMsgLength + 4;
+			toBeSent = realloc(toBeSent, toBeSentLength);
+			toBeSent[0] = 0; toBeSent[1] = OP_DATA; toBeSent[2] = block_nr >> 8; toBeSent[3] = block_nr & 0xff;
+			memcpy(&toBeSent[4], tmpMsg, tmpMsgLength);
+			transfer_complete++;
+		}
+		else {
+			toBeSentLength = MAX_PACKET_SIZE;
+			toBeSent = realloc(toBeSent, toBeSentLength);
+			toBeSent[0] = 0; toBeSent[1] = OP_DATA; toBeSent[2] = block_nr >> 8; toBeSent[3] = block_nr & 0xff;
+			memcpy(&toBeSent[4], tmpMsg, tmpMsgLength);
+			transfer_complete = 0;
+		}
+		sendto(sockfd, toBeSent, toBeSentLength, 0, (struct sockaddr *) &client, len);
+	}
+	else if(server_busy && transfer_complete && block_nr == recv_block_nr)
+	{
+		if(fp != NULL)
+		{
+			fclose(fp);
+			printf("File transfer finished!\n");
+		}
+		server_busy = 0;
+		transfer_complete = 0;
+		block_nr = 1;
+	}
+	else
+	{
+		printf("Recieved an ACK packet and no operation is ongoing\n");
+	}
 }
 
 /*void ErrorReceived(struct sockaddr_in client, char message)
@@ -250,7 +292,7 @@ int main(int argc, char *argv[])
 					printf("%s sent a data packet but it is not supported\n", (char *)inet_ntoa(client.sin_addr));
 					break;
 				case OP_ACK :
-					printf("Acknowledgment\n");
+					AckReceived(sockfd, client, message);
 					break;
 				case OP_ERR :
 					printf("Error\n");
@@ -262,8 +304,15 @@ int main(int argc, char *argv[])
 			fflush(stdout);
 		}
 		else {
-			if(errno == EAGAIN || errno == EWOULDBLOCK) {
-				printf("Timeout happened...\n");
+			if((errno == EAGAIN || errno == EWOULDBLOCK)) {
+				if(server_busy)
+				{
+					printf("Timeout happened...\n");
+				}
+				//resend last datapacket to client
+				if(timeouts < MAX_TIMEOUTS) {
+
+				}
 			}
 			else {
 				printf("Error happened...\n");
