@@ -3,7 +3,7 @@ TFTP server implementation                                       2017-09-12
                           TFTP IMPLEMENTATION
 
 ---------------------------------------------------------------------------
-Structure of implementation
+                      Structure of implementation
 ---------------------------------------------------------------------------
  Our implementation of a TFTP server starts with declarations of constants,
 operation codes and error codes.
@@ -31,9 +31,18 @@ code.
  The main section of our implementation
 
 ---------------------------------------------------------------------------
-RRQ and WRQ modes
+                             RRQ and WRQ modes
 ---------------------------------------------------------------------------
+ The mode string of RRQs and WRQs is a netascii that contains one of three
+different strings: "netascii", "octet" and "mail". This mode string tells
+
+ We do not specifically handle modes in our implementation since we are
+only sending files and not receiving them.
 
 ---------------------------------------------------------------------------
-Handling of uploading attempts
+                      Handling of uploading attempts
 ---------------------------------------------------------------------------
+ Our server handles uploading attempts by refusing them completely. We
+print out an error message on the server side that shows the IP and port
+numbers of the client sending a write request (WRQ). We also prepare an 
+error packet that we send back to the client.
