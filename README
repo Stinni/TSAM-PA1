@@ -1,1 +1,39 @@
-Update this.
+TFTP server implementation                                       2017-09-12
+
+                          TFTP IMPLEMENTATION
+
+---------------------------------------------------------------------------
+Structure of implementation
+---------------------------------------------------------------------------
+ Our implementation of a TFTP server starts with declarations of constants,
+operation codes and error codes.
+We then declare a number of global variables. (Explain)
+We structured the code in the main function so it would use assisstant
+functions. The functions we use are:
+ a. RRequest - handles read requests (RRQ)
+    The function makes sure that the client is requesting a file that the
+    client is allowed to access. If not, an error packet with a message
+    is sent back to the client. Otherwise the server sends the first data
+    packet to the client.
+ b. WRequest - handles write requests (WRQ)
+    The function sends an illegal operation error message back to the 
+    client due to uploading not being allowed.
+ c. AckReceived - handles acknowledge (ACK) packets
+    The function checks if the transfer is complete along with checking
+    whether the block number from the ACK message is the same as the block
+    number in the last data packet sent out. If transfer is not complete
+    and the block numbers match then the next data packet is sent to the
+    client. Otherwise the file transfer is finished.
+We also have a function to handle error messages it receives but deemed
+it unneccesary to implement properly and ended up commenting it out of
+code.
+
+ The main section of our implementation
+
+---------------------------------------------------------------------------
+RRQ and WRQ modes
+---------------------------------------------------------------------------
+
+---------------------------------------------------------------------------
+Handling of uploading attempts
+---------------------------------------------------------------------------
