@@ -35,9 +35,13 @@ code.
 ---------------------------------------------------------------------------
  The mode string of RRQs and WRQs is a netascii that contains one of three
 different strings: "netascii", "octet" and "mail". This mode string tells
+the host on what form the data will be and needs to translate the netascii
+to its own format. In our case we generally use octet mode since we are
+transfering files that must be identical.
 
  We do not specifically handle modes in our implementation since we are
-only sending files and not receiving them.
+only sending files and not receiving them. The DATA packets we send to the
+client do not hold any information about modes.
 
 ---------------------------------------------------------------------------
                       Handling of uploading attempts
