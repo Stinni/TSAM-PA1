@@ -130,7 +130,7 @@ void RRequest(int sockfd, struct sockaddr_in client, char *msg, char *folder_pat
 
 void WRequest(int sockfd, struct sockaddr_in client)
 {
-	printf("WRQ request not allowed on server!\n");
+	printf("A WRQ request recieved from \"%s:%d\"\n", (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 	char errorPacket[45];
 	errorPacket[0] = 0; errorPacket[1] = OP_ERR; errorPacket[2] = 0; errorPacket[3] = ERR_IOP;
 	strcpy(&errorPacket[4], "Uploading is not allowed on this server!");
@@ -142,6 +142,7 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 	unsigned int recv_block_nr = (unsigned char)message[2] << 8 | (unsigned char)message[3];
 
 	if(server_busy && !transfer_complete && block_nr == recv_block_nr) {
+		timeouts = 0;
 		block_nr++;
 		char tmpMsg[MAX_MESSAGE_LENGTH];
 		int tmpMsgLength = fread(&tmpMsg, 1, MAX_MESSAGE_LENGTH, fp);
@@ -163,11 +164,12 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 	}
 	else if(server_busy && transfer_complete && block_nr == recv_block_nr)
 	{
+		printf("File transfer finished!\n");
 		if(fp != NULL)
 		{
 			fclose(fp);
-			printf("File transfer finished!\n");
 		}
+		timeouts = 0;
 		server_busy = 0;
 		transfer_complete = 0;
 		block_nr = 1;
@@ -178,12 +180,10 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 	}
 }
 
-/*void ErrorReceived(struct sockaddr_in client, char message)
+void ErrorReceived(struct sockaddr_in client, char *message)
 {
-	// hér væri mögulega hægt að prenta bara út errorkóðann og errorskilaboðið í message
-	// viljum samt segja eitthvað eins og "Client 127.0.0.1:2000 reported error:"
-	printf("Received error message from %s", client);
-	char errcode = message[4];
+	printf("An error message recieved from \"%s:%d\"", (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+	/*char errcode = message[4];
 	switch(errcode)
 	{
 		case ERR_NOT :
@@ -210,8 +210,20 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 		case ERR_USR :
 			printf("No such user.");
 			break;
+	}*/
+	if(server_busy) // We terminate any transfer upon recieveing an error message
+	{
+		transfer_complete = 0;
+		block_nr = 1;
+		server_busy = 0;
+		timeouts = 0;
+		if(fp != NULL)
+		{
+			fclose(fp);
+		}
+		printf("File transfer aborted\n");
 	}
-}*/
+}
 
 int main(int argc, char *argv[])
 {
@@ -239,9 +251,6 @@ int main(int argc, char *argv[])
 		printf("Format expected is .src/tftp <port_number> <directory>\n");
 		exit(EXIT_FAILURE);
 	}
-
-	printf("folder_path: %s\n", folder_path);
-	printf("base_path: %s\n", base_path);
 
 	int sockfd;
 	struct sockaddr_in server, client;
@@ -289,33 +298,47 @@ int main(int argc, char *argv[])
 					WRequest(sockfd, client);
 					break;
 				case OP_DATA :
-					printf("%s sent a data packet but it is not supported\n", (char *)inet_ntoa(client.sin_addr));
+					printf("Recieved a data packet from \"%s:%d\"\n", (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 					break;
 				case OP_ACK :
 					AckReceived(sockfd, client, message);
 					break;
 				case OP_ERR :
-					printf("Error\n");
-					//ErrorReceived(client, message);
+					ErrorReceived(client, message);
 					break;
 				default:
 					printf("Opcode unrecognised!\n");
 			}
 			fflush(stdout);
 		}
-		else {
-			if((errno == EAGAIN || errno == EWOULDBLOCK)) {
-				if(server_busy)
+		else
+		{
+			if((errno == EAGAIN || errno == EWOULDBLOCK))
+			{
+				if(server_busy && timeouts < MAX_TIMEOUTS)
 				{
-					printf("Timeout happened...\n");
+					timeouts++;
+					printf("Timeout nr. %d - Resending last package\n", timeouts);
+					sendto(sockfd, toBeSent, toBeSentLength, 0, (struct sockaddr *) &client, len);
 				}
-				//resend last datapacket to client
-				if(timeouts < MAX_TIMEOUTS) {
-
+				else if(server_busy) // max timeouts reached, we reset everything and stop resending.
+				{
+					printf("Max number of timeouts has been reached. Aborting file transfer\n");
+					transfer_complete = 0;
+					block_nr = 1;
+					server_busy = 0;
+					timeouts = 0;
+					if(fp != NULL)
+					{
+						fclose(fp);
+					}
 				}
 			}
-			else {
-				printf("Error happened...\n");
+			else
+			{
+				printf("Some kind of an error happened...\n");
+				printf("Goodbye!\n");
+				exit(EXIT_FAILURE);
 			}
 			fflush(stdout);
 		}
