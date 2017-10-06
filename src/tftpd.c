@@ -140,8 +140,9 @@ void WRequest(int sockfd, struct sockaddr_in client)
 void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 {
 	unsigned int recv_block_nr = (unsigned char)message[2] << 8 | (unsigned char)message[3];
+	unsigned int curr_block_nr = block_nr & 0xffff;
 
-	if(server_busy && !transfer_complete && block_nr == recv_block_nr) {
+	if(server_busy && !transfer_complete && curr_block_nr == recv_block_nr) {
 		timeouts = 0;
 		block_nr++;
 		char tmpMsg[MAX_MESSAGE_LENGTH];
@@ -162,7 +163,7 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 		}
 		sendto(sockfd, toBeSent, toBeSentLength, 0, (struct sockaddr *) &client, len);
 	}
-	else if(server_busy && transfer_complete && block_nr == recv_block_nr)
+	else if(server_busy && transfer_complete && curr_block_nr == recv_block_nr)
 	{
 		printf("File transfer finished!\n");
 		if(fp != NULL)
@@ -183,34 +184,6 @@ void AckReceived(int sockfd, struct sockaddr_in client, char *message)
 void ErrorReceived(struct sockaddr_in client)
 {
 	printf("An error message recieved from \"%s:%d\"", (char *)inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-	/*char errcode = message[4];
-	switch(errcode)
-	{
-		case ERR_NOT :
-			printf("Not defined, see error message (if any).");
-			break;
-		case ERR_FILE :
-			printf("File not found.");
-			break;
-		case ERR_ACC :
-			printf("Access violation.");
-			break;
-		case ERR_DISK :
-			printf("Disk full or allocation exceeded.");
-			break;
-		case ERR_IOP :
-			printf("Illegal TFTP operation.");
-			break;
-		case ERR_UID :
-			printf("Unknown transfer ID.");
-			break;
-		case ERR_FEX :
-			printf("File already exists.");
-			break;
-		case ERR_USR :
-			printf("No such user.");
-			break;
-	}*/
 	if(server_busy) // We terminate any transfer upon recieveing an error message
 	{
 		transfer_complete = 0;
